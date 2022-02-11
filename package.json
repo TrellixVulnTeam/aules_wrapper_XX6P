@@ -1,6 +1,6 @@
 {
   "name": "aules_wrapper",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "An API wrapper for the Aules platform.",
   "main": "lib/index.js",
   "scripts": {
@@ -14,7 +14,7 @@
   "keywords": [ "api" ],
   "author": "danisty",
   "license": "ISC",
-  "devDependencies": {
+  "dependencies": {
     "@types/node": "^17.0.17",
     "@types/tough-cookie": "^4.0.1",
     "axios": "^0.25.0",
