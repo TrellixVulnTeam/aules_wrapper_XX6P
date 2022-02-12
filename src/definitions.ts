@@ -1,5 +1,12 @@
 export default this;
 
+export interface SessionOptions {
+    course: string,
+    username: string,
+    password: string,
+    cookie?: string
+}
+
 export interface User {
     id: string ,
     name: string,
@@ -34,27 +41,6 @@ export interface Event {
     popupname: string
 }
 
-export interface Class {
-    id: number,
-    fullname: string,
-    shortname: string,
-    idnumber: string,
-    summary: string,
-    summaryformat: number,
-    startdate: number,
-    enddate: number,
-    visible: boolean,
-    fullnamedisplay: string,
-    viewurl: string,
-    courseimage: string,
-    progress: number,
-    hasprogress: boolean,
-    isfavourite: boolean,
-    hidden: boolean,
-    showshortname: boolean,
-    coursecategory: string
-}
-
 export interface Icon {
     key: string,
     component: string,
@@ -67,4 +53,37 @@ export interface Action {
     itemcount: number,
     actionable: boolean,
     showitemcount: boolean
+}
+
+export class Class {
+    id!: number;
+    fullname!: string;
+    shortname!: string;
+    idnumber!: string;
+    summary!: string;
+    summaryformat!: number;
+    startdate!: number;
+    enddate!: number;
+    visible: boolean = false;
+    fullnamedisplay!: string;
+    viewurl!: string;
+    courseimage!: string;
+    progress!: number;
+    hasprogress: boolean = false;
+    isfavourite: boolean = false;
+    hidden: boolean = false;
+    showshortname: boolean = false;
+    coursecategory!: string;
+
+    constructor (classData: Object) {
+        Object.assign(this, classData)
+    }
+
+    async getResources() : Promise<Resource> {
+        return {}
+    }
+}
+
+class Resource {
+
 }

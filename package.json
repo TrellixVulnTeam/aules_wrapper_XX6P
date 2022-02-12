@@ -1,6 +1,6 @@
 {
   "name": "aules_wrapper",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "An API wrapper for the Aules platform.",
   "main": "lib/index.js",
   "scripts": {

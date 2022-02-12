@@ -1,5 +1,5 @@
 import { AxiosInstance } from 'axios';
-import { User, Event, Class } from './interfaces';
+import { User, Event, Class } from './definitions';
 declare const _default: undefined;
 export default _default;
 export declare const Sessions: Session[];

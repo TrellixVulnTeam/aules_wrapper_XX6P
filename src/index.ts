@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosPromise, AxiosRequestConfig, Method } from 'axios';
 import { HTMLElement, parse } from 'node-html-parser';
-import { User, Event, Class } from './interfaces';
+import { User, Event, Class, SessionOptions } from './definitions';
 import { wrapper } from 'axios-cookiejar-support';
 import { CookieJar } from 'tough-cookie';
 
@@ -12,15 +12,23 @@ export class Session {
     private jar = new CookieJar();
     private baseURL: string = 'https://aules.edu.gva.es';
     private sesskey: string = '';
+    private options: SessionOptions;
 
     request: AxiosInstance = wrapper(axios.create({ jar: this.jar }));
 
-    constructor (cookie: string = '') {
-        cookie.split(';').forEach(c => {
-            let cookie = c.split('=');
-            cookie[1] && this.jar.setCookieSync(cookie[0], cookie[1]);
-        });
+    constructor (options: SessionOptions) {
+        this.options = options;
         Sessions.push(this);
+
+        if (options.cookie) {
+            options.cookie.split(';').forEach(c => {
+                let cookie = c.split('=');
+                cookie[1] && this.jar.setCookieSync(cookie[0], cookie[1]);
+            });
+        }
+        if (options.course) {
+            this.baseURL += `/${options.course}`;
+        }
     }
 
     private apiRequest(method: Method, url: string, options: AxiosRequestConfig = {}) : AxiosPromise {
@@ -37,7 +45,11 @@ export class Session {
         return promise;
     }
 
-    async login(course: string, username: string, password: string) : Promise<any> {
+    async login(course?: string, username?: string, password?: string) : Promise<any> {
+        this.options.course = course ?? this.options.course;
+        this.options.username = username ?? this.options.username;
+        this.options.password = password ?? this.options.password;
+
         let mainPageResponse = await this.apiRequest('GET', `/${course}/login/index.php`, { headers: {} });
         let loginToken = parse(mainPageResponse.data).querySelector('[name="logintoken"]')?.getAttribute('value');
 
