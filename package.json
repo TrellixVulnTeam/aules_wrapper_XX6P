@@ -1,6 +1,6 @@
 {
   "name": "aules_wrapper",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "An API wrapper for the Aules platform.",
   "main": "lib/index.js",
   "scripts": {
@@ -11,16 +11,14 @@
   "bugs": {
     "url": "https://github.com/danisty/aules_wrapper/issues"
   },
-  "keywords": [ "api" ],
+  "keywords": [
+    "api"
+  ],
   "author": "danisty",
   "license": "ISC",
   "dependencies": {
-    "@types/node": "^17.0.17",
-    "@types/tough-cookie": "^4.0.1",
     "axios": "^0.25.0",
-    "axios-cookiejar-support": "^2.0.3",
-    "tough-cookie": "^4.0.0",
-    "typescript": "^4.5.5",
-    "node-html-parser": "^5.2.0"
+    "node-html-parser": "^5.2.0",
+    "typescript": "^4.5.5"
   }
 }

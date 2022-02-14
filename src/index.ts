@@ -1,20 +1,42 @@
-import axios, { AxiosInstance, AxiosPromise, AxiosRequestConfig, Method } from 'axios';
+import axios, { AxiosInstance, AxiosPromise, AxiosRequestConfig, AxiosResponse, Method } from 'axios';
 import { HTMLElement, parse } from 'node-html-parser';
 import { User, Event, Class, SessionOptions } from './definitions';
-import { wrapper } from 'axios-cookiejar-support';
-import { CookieJar } from 'tough-cookie';
 
 const JSONtoFormDataString = (data: Object) : string => Object.entries(data).map(x => `${x[0]}=${x[1]}`).join('&');
+
+interface Cookie {
+    key: string,
+    value: string
+}
+
+class CookieJar {
+    cookies: Cookie[] = [];
+
+    constructor () {}
+
+    addCookie = (key: string, value: string) => {
+        let cookie = this.cookies.find(c => c.key == key);
+        if (cookie) cookie.value = value;
+        else this.cookies.push({ key, value });
+    };
+    removeCookie = (key: string) => this.cookies.splice(this.cookies.findIndex(c => c.key == key), 1);
+    addCookiesFromHeaders = (headers: any) => headers['set-cookie'].forEach((c: any) => {
+        let [key, value] = c.split(';')[0].split('=');
+        if (value == 'deleted') this.removeCookie(key);
+        else this.addCookie(key, value);
+    });
+    toString = () : string => this.cookies.map(c => `${c.key}=${c.value}`).join('; ');
+}
 
 export default this;
 export const Sessions: Session[] = [];
 export class Session {
-    private jar = new CookieJar();
     private baseURL: string = 'https://aules.edu.gva.es';
     private sesskey: string = '';
     private options: SessionOptions;
 
-    request: AxiosInstance = wrapper(axios.create({ jar: this.jar }));
+    request: AxiosInstance = axios.create();
+    cookieJar: CookieJar = new CookieJar();
 
     constructor (options: SessionOptions = {}) {
         this.options = options;
@@ -23,7 +45,8 @@ export class Session {
         if (options.cookie) {
             options.cookie.split(';').forEach(c => {
                 let cookie = c.split('=');
-                cookie[1] && this.jar.setCookieSync(cookie[0], cookie[1]);
+                if (cookie[1])
+                    this.cookieJar.addCookie(cookie[0], cookie[1]);
             });
         }
         if (options.course) {
@@ -32,17 +55,38 @@ export class Session {
     }
 
     private apiRequest(method: Method, url: string, options: AxiosRequestConfig = {}) : AxiosPromise {
-        let promise = this.request({
-            method: method,
-            url: url,
-            baseURL: this.baseURL,
-            ...options
+        let headers = options.headers ?? {};
+        delete options.headers;
+        
+        return new Promise((resolve, reject) => {
+            this.request({
+                method: method,
+                url: url,
+                baseURL: this.baseURL,
+                maxRedirects: 0,
+                headers: {
+                    cookie: this.cookieJar.toString(),
+                    ...headers
+                },
+                ...options
+            }).then(res => {
+                if (typeof(res.data) == 'string')
+                    this.sesskey = res.data.match(/sesskey=(\w+)/)?.[1] ?? this.sesskey;
+
+                res.headers['set-cookie'] && this.cookieJar.addCookiesFromHeaders(res.headers);
+                resolve(res);
+            }).catch(async e => {
+                let res: AxiosResponse = e.response;
+
+                res.headers['set-cookie'] && this.cookieJar.addCookiesFromHeaders(res.headers);
+
+                if (res.status == 303) {
+                    resolve(await this.apiRequest('GET', res.headers.location));
+                } else {
+                    throw e;
+                }
+            });
         });
-        promise.then(res => {
-            if (typeof(res.data) == 'string')
-                this.sesskey = res.data.match(/sesskey=(\w+)/)?.[1] ?? this.sesskey
-        });
-        return promise;
     }
 
     async login(course?: string, username?: string, password?: string) : Promise<any> {
@@ -50,7 +94,10 @@ export class Session {
         this.options.username = username ?? this.options.username;
         this.options.password = password ?? this.options.password;
 
-        let mainPageResponse = await this.apiRequest('GET', `/${course}/login/index.php`, { headers: {} });
+        let oldCookieJar = this.cookieJar;
+        this.cookieJar = new CookieJar();
+
+        let mainPageResponse = await this.apiRequest('GET', `/${course}/login/index.php`);
         let loginToken = parse(mainPageResponse.data).querySelector('[name="logintoken"]')?.getAttribute('value');
 
         let loginResponse = await this.apiRequest('POST', `/${course}/login/index.php`, {
@@ -74,7 +121,7 @@ export class Session {
 
             return {
                 success: true,
-                cookie: this.jar.toJSON().cookies.map(c => `${c.key}=${c.value}`).join('; '),
+                cookie: this.cookieJar.toString(),
                 user: {
                     name: usermenu.text.trim(),
                     profilePicture: loginResponseDoc.querySelector('.userpicture')?.getAttribute('src')?.replace('f2', 'f1')
@@ -86,6 +133,7 @@ export class Session {
                 }))
             }
         } else {
+            this.cookieJar = oldCookieJar;
             return {
                 success: false
             }
