@@ -1,9 +1,9 @@
 declare const _default: undefined;
 export default _default;
 export interface SessionOptions {
-    course: string;
-    username: string;
-    password: string;
+    course?: string;
+    username?: string;
+    password?: string;
     cookie?: string;
 }
 export interface User {

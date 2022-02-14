@@ -16,7 +16,7 @@ export class Session {
 
     request: AxiosInstance = wrapper(axios.create({ jar: this.jar }));
 
-    constructor (options: SessionOptions) {
+    constructor (options: SessionOptions = {}) {
         this.options = options;
         Sessions.push(this);
 
@@ -68,7 +68,7 @@ export class Session {
         let usermenu = loginResponseDoc.querySelector('#usermenu');
         
         if (usermenu) {
-            this.baseURL += `/${course}`;
+            this.baseURL = `https://aules.edu.gva.es/${course}`;
 
             let events = loginResponseDoc.querySelectorAll('[data-region="event-item"]');
 
@@ -92,7 +92,7 @@ export class Session {
         }
     }
 
-    async isSessionValid() : Promise<boolean> {
+    async isValid() : Promise<boolean> {
         let homePageDoc = parse((await this.apiRequest('GET', '/my')).data);
         return homePageDoc.querySelector('#usermenu') ? true : false;
     }

@@ -9,10 +9,10 @@ export declare class Session {
     private sesskey;
     private options;
     request: AxiosInstance;
-    constructor(options: SessionOptions);
+    constructor(options?: SessionOptions);
     private apiRequest;
     login(course?: string, username?: string, password?: string): Promise<any>;
-    isSessionValid(): Promise<boolean>;
+    isValid(): Promise<boolean>;
     getUserInfo(): Promise<User>;
     getEvents(): Promise<Event[]>;
     getClasses(): Promise<Class[]>;

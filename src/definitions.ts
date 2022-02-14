@@ -1,9 +1,9 @@
 export default this;
 
 export interface SessionOptions {
-    course: string,
-    username: string,
-    password: string,
+    course?: string,
+    username?: string,
+    password?: string,
     cookie?: string
 }
 
