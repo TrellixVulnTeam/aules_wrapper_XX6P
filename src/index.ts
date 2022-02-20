@@ -1,92 +1,43 @@
-import axios, { AxiosInstance, AxiosPromise, AxiosRequestConfig, AxiosResponse, Method } from 'axios';
+import axios, { AxiosInstance, AxiosPromise, AxiosRequestConfig, Method } from 'axios';
+import { wrapper } from 'axios-cookiejar-support';
 import { HTMLElement, parse } from 'node-html-parser';
 import { User, Event, Class, SessionOptions } from './definitions';
+import { CookieJar } from 'tough-cookie'
 
 const JSONtoFormDataString = (data: Object) : string => Object.entries(data).map(x => `${x[0]}=${x[1]}`).join('&');
 
-interface Cookie {
-    key: string,
-    value: string
-}
-
-class CookieJar {
-    cookies: Cookie[] = [];
-
-    constructor () {}
-
-    addCookie = (key: string, value: string) => {
-        let cookie = this.cookies.find(c => c.key == key);
-        if (cookie) cookie.value = value;
-        else this.cookies.push({ key, value });
-    };
-    removeCookie = (key: string) => this.cookies.splice(this.cookies.findIndex(c => c.key == key), 1);
-    addCookiesFromHeaders = (headers: any) => headers['set-cookie'].forEach((c: any) => {
-        let [key, value] = c.split(';')[0].split('=');
-        if (value == 'deleted') this.removeCookie(key);
-        else this.addCookie(key, value);
-    });
-    toString = () : string => this.cookies.map(c => `${c.key}=${c.value}`).join('; ');
-}
-
 export default this;
-export const Sessions: Session[] = [];
 export class Session {
     private baseURL: string = 'https://aules.edu.gva.es';
     private sesskey: string = '';
     private options: SessionOptions;
 
-    request: AxiosInstance = axios.create();
     cookieJar: CookieJar = new CookieJar();
+    request: AxiosInstance = axios.create();
 
     constructor (options: SessionOptions = {}) {
         this.options = options;
-        Sessions.push(this);
 
-        if (options.cookie) {
-            options.cookie.split(';').forEach(c => {
-                let cookie = c.split('=');
-                if (cookie[1])
-                    this.cookieJar.addCookie(cookie[0], cookie[1]);
-            });
-        }
-        if (options.course) {
-            this.baseURL += `/${options.course}`;
+        if (options.useCookieJar) {
+            this.request = wrapper(axios.create({ jar: this.cookieJar }));
+            if (options.cookies) try {
+                let cookies = JSON.parse(options.cookies);
+                cookies.forEach((c: any) => this.cookieJar.setCookieSync(`${c.key}=${c.value}`, this.baseURL + c.path, { secure: true }));
+            } catch {}
         }
     }
 
     private apiRequest(method: Method, url: string, options: AxiosRequestConfig = {}) : AxiosPromise {
-        let headers = options.headers ?? {};
-        delete options.headers;
-        
-        return new Promise((resolve, reject) => {
-            this.request({
-                method: method,
-                url: url,
-                baseURL: this.baseURL,
-                maxRedirects: 0,
-                headers: {
-                    cookie: this.cookieJar.toString(),
-                    ...headers
-                },
-                ...options
-            }).then(res => {
-                if (typeof(res.data) == 'string')
-                    this.sesskey = res.data.match(/sesskey=(\w+)/)?.[1] ?? this.sesskey;
-
-                res.headers['set-cookie'] && this.cookieJar.addCookiesFromHeaders(res.headers);
-                resolve(res);
-            }).catch(async e => {
-                let res: AxiosResponse = e.response;
-
-                res.headers['set-cookie'] && this.cookieJar.addCookiesFromHeaders(res.headers);
-
-                if (res.status == 303) {
-                    resolve(await this.apiRequest('GET', res.headers.location));
-                } else {
-                    throw e;
-                }
-            });
+        let req = this.request({
+            method: method,
+            url: this.baseURL + url,
+            ...options
+        })
+        req.then(res => {
+            if (typeof(res.data) == 'string')
+                this.sesskey = res.data.match(/sesskey=(\w+)/)?.[1] ?? this.sesskey;
         });
+        return req;
     }
 
     async login(course?: string, username?: string, password?: string) : Promise<any> {
@@ -94,20 +45,19 @@ export class Session {
         this.options.username = username ?? this.options.username;
         this.options.password = password ?? this.options.password;
 
-        let oldCookieJar = this.cookieJar;
-        this.cookieJar = new CookieJar();
+        this.cookieJar.removeAllCookiesSync();
 
-        let mainPageResponse = await this.apiRequest('GET', `/${course}/login/index.php`);
+        let mainPageResponse = await this.apiRequest('GET', `/${this.options.course}/login/index.php`);
         let loginToken = parse(mainPageResponse.data).querySelector('[name="logintoken"]')?.getAttribute('value');
 
-        let loginResponse = await this.apiRequest('POST', `/${course}/login/index.php`, {
+        let loginResponse = await this.apiRequest('POST', `/${this.options.course}/login/index.php`, {
             headers: {
                 'content-type': 'application/x-www-form-urlencoded'
             },
             data: JSONtoFormDataString({
                 logintoken: loginToken,
-                username: username,
-                password: password
+                username: this.options.username,
+                password: this.options.password
             })
         });
 
@@ -115,13 +65,11 @@ export class Session {
         let usermenu = loginResponseDoc.querySelector('#usermenu');
         
         if (usermenu) {
-            this.baseURL = `https://aules.edu.gva.es/${course}`;
-
             let events = loginResponseDoc.querySelectorAll('[data-region="event-item"]');
 
             return {
                 success: true,
-                cookie: this.cookieJar.toString(),
+                cookies: JSON.stringify(this.cookieJar.toJSON().cookies),
                 user: {
                     name: usermenu.text.trim(),
                     profilePicture: loginResponseDoc.querySelector('.userpicture')?.getAttribute('src')?.replace('f2', 'f1')
@@ -133,20 +81,20 @@ export class Session {
                 }))
             }
         } else {
-            this.cookieJar = oldCookieJar;
             return {
-                success: false
+                success: false,
+                error: loginResponseDoc.querySelector('.alert.alert-danger')?.text
             }
         }
     }
 
     async isValid() : Promise<boolean> {
-        let homePageDoc = parse((await this.apiRequest('GET', '/my')).data);
+        let homePageDoc = parse((await this.apiRequest('GET', `/${this.options.course}/my`)).data);
         return homePageDoc.querySelector('#usermenu') ? true : false;
     }
 
     async getUserInfo() : Promise<User> {
-        let userDoc = parse((await this.apiRequest('GET', '/user/profile.php')).data);
+        let userDoc = parse((await this.apiRequest('GET', `/${this.options.course}/user/profile.php`)).data);
         return {
             id: userDoc.querySelector('.contentnode.idnumber.aduseropt')?.lastChild.childNodes[1].text ?? '',
             name: userDoc.querySelector('.contentnode.fullname')?.text ?? '',
@@ -156,17 +104,21 @@ export class Session {
     }
 
     async getEvents() : Promise<Event[]> {
-        let upcomingEvents = await this.apiRequest('POST', `/lib/ajax/service.php?sesskey=${this.sesskey}&info=core_calendar_get_calendar_upcoming_view`, {
-            headers: { 'content-type': 'application/json' },
-            data: [{ index: 0, methodname: 'core_calendar_get_calendar_upcoming_view', args: { courseid: '1', categoryid: '0' } }]
+        let upcomingEvents = await this.apiRequest('POST', `/${this.options.course}/lib/ajax/service.php?sesskey=${this.sesskey}&info=core_calendar_get_calendar_upcoming_view`, {
+            data: [{ index: 0, methodname: 'core_calendar_get_calendar_upcoming_view', args: { courseid: '1', categoryid: '0' } }],
+            headers: {
+                'content-type': 'application/json'
+            }
         });
         return upcomingEvents.data[0].data.events;
     }
 
     async getClasses() : Promise<Class[]> {
-        let classes = await this.apiRequest('POST', `/lib/ajax/service.php?sesskey=${this.sesskey}&info=core_course_get_enrolled_courses_by_timeline_classification`, {
-            headers: { 'content-type': 'application/json' },
-            data: [{ index: 0, methodname:'core_course_get_enrolled_courses_by_timeline_classification', args: { offset: 0, limit: 0, classification: 'all', sort: 'fullname', customfieldname: '', customfieldvalue: '' } }]
+        let classes = await this.apiRequest('POST', `/${this.options.course}/lib/ajax/service.php?sesskey=${this.sesskey}&info=core_course_get_enrolled_courses_by_timeline_classification`, {
+            data: [{ index: 0, methodname:'core_course_get_enrolled_courses_by_timeline_classification', args: { offset: 0, limit: 0, classification: 'all', sort: 'fullname', customfieldname: '', customfieldvalue: '' } }],
+            headers: {
+                'content-type': 'application/json'
+            }
         });
         return classes.data[0].data.courses;
     }

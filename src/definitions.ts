@@ -4,7 +4,8 @@ export interface SessionOptions {
     course?: string,
     username?: string,
     password?: string,
-    cookie?: string
+    cookies?: string,
+    useCookieJar?: boolean
 }
 
 export interface User {

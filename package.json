@@ -1,6 +1,6 @@
 {
   "name": "aules_wrapper",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "An API wrapper for the Aules platform.",
   "main": "lib/index.js",
   "scripts": {
@@ -17,8 +17,13 @@
   "author": "danisty",
   "license": "ISC",
   "dependencies": {
-    "axios": "^0.25.0",
+    "axios": "^0.26.0",
+    "axios-cookiejar-support": "^2.0.3",
     "node-html-parser": "^5.2.0",
+    "tough-cookie": "^4.0.0",
     "typescript": "^4.5.5"
+  },
+  "devDependencies": {
+    "@types/tough-cookie": "^4.0.1"
   }
 }
